@@ -3,7 +3,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .config import ProjectConfig
+from src.config import ProjectConfig
 
 conf = ProjectConfig()
 
@@ -31,7 +31,7 @@ def get_several_experiment_variants_ids(df) -> pd.DataFrame:
     )
 
 
-def clean_logs(
+def get_clean_logs(
     raw_records: Optional[pd.DataFrame] = None,
     save_to_db: bool = False,
     return_df: bool = True,
@@ -63,3 +63,7 @@ def clean_logs(
 
     if return_df:
         return clean_records
+
+
+if __name__ == "__main__":
+    get_clean_logs(return_df=False)
