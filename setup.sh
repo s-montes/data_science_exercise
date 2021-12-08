@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 if [ "$1" == "build_venv" ]
 then
@@ -9,13 +10,19 @@ then
     pre-commit install
 elif [ "$1" == "clean_data" ]
 then
-    echo "Clean data!"
+    echo "Clean data and EDA!"
+    source ./.venv/bin/activate
+    python -m src.clean_data
 elif [ "$1" == "experiment_report" ]
 then
     echo "Create experiment report!"
+    source ./.venv/bin/activate
+    python -m src.testing
 elif [ "$1" == "estimate_percentage" ]
 then
     echo "Estimate percentage increase!"
+    source ./.venv/bin/activate
+    python -m src.percentage
 else
-    echo "Bad option"
+    echo "Bad option! See README"
 fi

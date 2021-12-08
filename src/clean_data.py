@@ -1,7 +1,10 @@
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
+import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 
 from src.config import ProjectConfig
 
@@ -65,5 +68,85 @@ def get_clean_logs(
         return clean_records
 
 
+def get_revenue_df(clean_logs: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    if clean_logs is None:
+        clean_logs = get_clean_logs()
+    revenue_df = (
+        clean_logs.fillna({"revenue": 0})
+        .groupby("user_id")
+        .agg(
+            revenue=("revenue", "sum"),
+            variant=("variant", "first"),
+            city=("city", "first"),
+        )
+    )
+    revenue_df["conversion"] = (revenue_df["revenue"] > 0).astype(float)
+    return revenue_df
+
+
+def general_metrics(df: pd.DataFrame, plot_folder: str):
+    print(f"Number of records:\n{len(df)}\n")
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    print(f"Date range:\n{df['datetime'].min(), df['datetime'].max()}\n")
+    print(f"Number of events:\n{df['event_type'].value_counts()}\n")
+    print(f"Number of unique users:\n{len(df['user_id'].unique())}\n")
+    print(
+        f"""Median number of records per user:
+    {(df['user_id'].value_counts().median())}
+        """
+    )
+    print(
+        f"""Number of users assigned to each variant:
+    {(df.drop_duplicates(subset=['user_id'])['variant']
+    .value_counts()
+    .reset_index()
+    .to_string(index=False))}
+        """
+    )
+    print(
+        f"""Number of users visiting each city:
+    {(df.drop_duplicates(subset=["user_id"])["city"]
+    .value_counts().reset_index()
+    .to_string(index=False))}
+        """
+    )
+    # Plots
+    plot_path = conf.fig_path / Path(plot_folder)
+    plot_path.mkdir(exist_ok=True)
+
+    plt.figure()
+    ecdf = sns.displot(
+        data=df,
+        x="revenue",
+        hue="variant",
+        kind="ecdf",
+    ).figure.savefig(plot_path / Path("revenue_ecdf.png"))
+
+    plt.figure()
+    kde = sns.displot(
+        data=df,
+        x="revenue",
+        row="variant",
+        kind="kde",
+        hue="city",
+        row_order=("A", "B"),
+    ).figure.savefig(plot_path / Path("revenue_kde_city.png"))
+
+    plt.figure()
+    box = sns.boxplot(data=df, x="revenue", y="variant").figure.savefig(
+        plot_path / Path("revenue_box.png")
+    )
+
+
 if __name__ == "__main__":
-    get_clean_logs(return_df=False)
+    raw_logs = get_raw_logs()
+    print("--- Raw logs metrics ---")
+    print("")
+    general_metrics(raw_logs, "raw_logs_eda")
+    print("")
+    print("--- Log cleaning ---")
+    clean_logs = get_clean_logs(raw_logs, return_df=True)
+    print("")
+    print("--- Clean logs metrics ---")
+    print("")
+    general_metrics(clean_logs, "clean_logs_eda")

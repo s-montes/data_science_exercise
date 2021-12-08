@@ -1,21 +1,21 @@
+from pathlib import Path
 from typing import Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats as st
 import seaborn as sns
-from numpy.random import MT19937, default_rng
-from numpy.random import RandomState, SeedSequence
+from numpy.random import MT19937, RandomState, SeedSequence
 from statsmodels.stats.weightstats import ztest
 
-from src.clean_data import get_clean_logs
+from src.clean_data import get_clean_logs, get_revenue_df
 from src.config import ProjectConfig
-from src.utils import merge_series_by_index
+from src.utils import bootstrap_estimate, merge_series_by_index
 
 conf = ProjectConfig()
 
-rs = RandomState(MT19937(SeedSequence(conf.random_seed)))
-rng = default_rng()
+rng = RandomState(MT19937(SeedSequence(conf.random_seed)))
 
 
 def get_experiment_summary(clean_logs: Optional[pd.DataFrame] = None) -> pd.DataFrame:
@@ -46,33 +46,25 @@ def get_experiment_summary(clean_logs: Optional[pd.DataFrame] = None) -> pd.Data
     return experiment
 
 
-def get_revenue_df(clean_logs: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-    if clean_logs is None:
-        clean_logs = get_clean_logs()
-    revenue_df = (
-        clean_logs.fillna({"revenue": 0})
-        .groupby("user_id")
-        .agg(revenue=("revenue", "sum"), variant=("variant", "first"))
-    )
-    revenue_df["conversion"] = (revenue_df["revenue"] > 0).astype(float)
-    return revenue_df
-
-
 def bootstrap_test(
     dataframe: pd.DataFrame(),
     group: str,
     target: str,
     n_resamples: int,
-    rng: np.random.Generator = None,
+    rng: RandomState = None,
 ):
     if rng is None:
-        rng = default_rng()
+        rng = RandomState(MT19937(SeedSequence(conf.random_seed)))
     samples = []
     # Split A/B
     group_A = dataframe[dataframe[group] == "A"][target]
     size_A = len(group_A)
+    exp_A, err_A = bootstrap_estimate(group_A.values, np.mean, rng=rng)
+    print(f"Estimate for A (95% confidence): {exp_A:.2f} +/- {err_A:.2f}")
     group_B = dataframe[dataframe[group] == "B"][target]
     size_B = len(group_B)
+    exp_B, err_B = bootstrap_estimate(group_B.values, np.mean, rng=rng)
+    print(f"Estimate for B (95% confidence): {exp_B:.2f} +/- {err_B:.2f}")
     mean_A = np.mean(group_A)
     mean_B = np.mean(group_B)
     tot_mean = dataframe[target].mean()
@@ -153,7 +145,17 @@ def bootstrap_pvalue(
         print(f"Expected uplift: {100*uplift:.2f}%")
     else:
         print(f"Expected downlift: {-100*uplift:.2f}%")
+
     t, samples = bootstrap_test(revenue_df, variant_col, target_col, n_resamples, rng)
+
+    plot_path = conf.fig_path / Path("test")
+    plot_path.mkdir(exist_ok=True)
+
+    plt.figure()
+    t_plot = sns.displot(samples, kde=True)
+    t_plot.ax.axvline(t, color="red")
+    t_plot.figure.savefig(plot_path / Path(f"test_{target_col}.png"))
+
     if alternative == "larger":
         p_val = np.mean(samples > t)
     elif alternative == "smaller":
