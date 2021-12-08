@@ -7,6 +7,7 @@ import pandas as pd
 import scipy.stats as st
 import seaborn as sns
 from numpy.random import MT19937, RandomState, SeedSequence
+from statsmodels.stats.power import tt_ind_solve_power
 from statsmodels.stats.weightstats import ztest
 
 from src.clean_data import get_clean_logs, get_revenue_df
@@ -53,6 +54,8 @@ def bootstrap_test(
     n_resamples: int,
     rng: RandomState = None,
 ):
+    # see
+    # https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Bootstrap_hypothesis_testing
     if rng is None:
         rng = RandomState(MT19937(SeedSequence(conf.random_seed)))
     samples = []
@@ -61,10 +64,12 @@ def bootstrap_test(
     size_A = len(group_A)
     exp_A, err_A = bootstrap_estimate(group_A.values, np.mean, rng=rng)
     print(f"Estimate for A (95% confidence): {exp_A:.2f} +/- {err_A:.2f}")
+
     group_B = dataframe[dataframe[group] == "B"][target]
     size_B = len(group_B)
     exp_B, err_B = bootstrap_estimate(group_B.values, np.mean, rng=rng)
     print(f"Estimate for B (95% confidence): {exp_B:.2f} +/- {err_B:.2f}")
+
     mean_A = np.mean(group_A)
     mean_B = np.mean(group_B)
     tot_mean = dataframe[target].mean()
@@ -72,9 +77,12 @@ def bootstrap_test(
     var_B = np.var(group_B)
     print(f"Mean A: {mean_A:.2f}")
     print(f"Mean B: {mean_B:.2f}")
+
     t = (mean_B - mean_A) / np.sqrt((var_B / size_B) + (var_A / size_A))
     print(f"t-statistic: {t:.2f}")
+
     print(f"Number of resamples: {n_resamples}")
+
     for _ in range(n_resamples):
         sample_A = rng.choice(group_A - mean_A + tot_mean, size=size_A, replace=True)
         sample_B = rng.choice(group_B - mean_B + tot_mean, size=size_B, replace=True)
@@ -116,8 +124,25 @@ def z_test_conversion(
     print(f"P-value: {100*p_val:.2f}%")
     if p_val < 0.05:
         print("Significant at 95%!")
+        observed_power = tt_ind_solve_power(
+            uplift,
+            nobs1=len(group_A),
+            alpha=0.05,
+            ratio=len(group_B) / len(group_A),
+            alternative=alternative,
+        )
+        print(f"Observed power: {100*observed_power:.2f}%")
+    print("")
     if p_val < 0.01:
         print("Significant at 99%!")
+        observed_power = tt_ind_solve_power(
+            uplift,
+            nobs1=len(group_A),
+            alpha=0.01,
+            ratio=len(group_B) / len(group_A),
+            alternative=alternative,
+        )
+        print(f"Observed power: {100*observed_power:.2f}%")
 
 
 def bootstrap_pvalue(

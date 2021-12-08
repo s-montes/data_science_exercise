@@ -3,6 +3,7 @@ set -e
 
 if [ "$1" == "build_venv" ]
 then
+    echo "Building Python venv!"
     mkdir -p ./.venv
     python3 -m venv ./.venv
     source ./.venv/bin/activate

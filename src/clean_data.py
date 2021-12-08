@@ -18,16 +18,26 @@ def get_raw_logs() -> pd.DataFrame:
     return raw_records
 
 
-def get_zero_revenue_ids(df) -> pd.DataFrame:
+def get_zero_revenue_ids(df) -> list:
     return list(
         df.loc[((~df["revenue"].isna()) & (df["revenue"] < 0.1)), "user_id"].unique()
     )
 
 
-def get_several_experiment_variants_ids(df) -> pd.DataFrame:
+def get_several_experiment_variants_ids(df) -> list:
     return list(
         df.groupby("user_id")
         .agg(tot_variants=("variant", lambda x: len(set(x))))
+        .where(lambda x: x > 1)
+        .dropna()
+        .index
+    )
+
+
+def get_sevel_bookings_ids(df) -> list:
+    return list(
+        df.loc[df["event_type"] == "booking_request", "user_id"]
+        .value_counts()
         .where(lambda x: x > 1)
         .dropna()
         .index
@@ -47,8 +57,9 @@ def get_clean_logs(
     # Find invalid user_id records and remove them
     zero_revenue = get_zero_revenue_ids(raw_records)
     several_variants = get_several_experiment_variants_ids(raw_records)
+    several_bookings = get_sevel_bookings_ids(raw_records)
     clean_records = raw_records[
-        ~raw_records["user_id"].isin(zero_revenue + several_variants)
+        ~raw_records["user_id"].isin(zero_revenue + several_variants + several_bookings)
     ].reset_index(drop=True)
 
     # Assert that cleaning was successful
