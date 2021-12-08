@@ -47,33 +47,42 @@ def get_sevel_bookings_ids(df) -> list:
 def get_clean_logs(
     raw_records: Optional[pd.DataFrame] = None,
     save_to_db: bool = False,
+    read_from_df: bool = False,
     return_df: bool = True,
 ) -> Optional[pd.DataFrame]:
-    # Load raw records if needed
-    if raw_records is None:
-        raw_records = get_raw_logs()
-        assert len(raw_records) > 0, "No records in DB!"
-
-    # Find invalid user_id records and remove them
-    zero_revenue = get_zero_revenue_ids(raw_records)
-    several_variants = get_several_experiment_variants_ids(raw_records)
-    several_bookings = get_sevel_bookings_ids(raw_records)
-    clean_records = raw_records[
-        ~raw_records["user_id"].isin(zero_revenue + several_variants + several_bookings)
-    ].reset_index(drop=True)
-
-    # Assert that cleaning was successful
-    assert (
-        len(get_zero_revenue_ids(clean_records)) == 0
-    ), "Some records have revenue equal 0"
-    assert (
-        len(get_several_experiment_variants_ids(clean_records)) == 0
-    ), "Some IDs have more than one variant associated to them"
-
-    # Save to DB if needed
-    if save_to_db:
+    if read_from_df:
         with sqlite3.connect(conf.db_path) as conn:
-            clean_records.to_sql(conf.clean_records, conn)
+            clean_records = pd.read_sql_query(
+                f"SELECT * from {conf.clean_records}", conn
+            )
+    else:
+        # Load raw records if needed
+        if raw_records is None:
+            raw_records = get_raw_logs()
+            assert len(raw_records) > 0, "No records in DB!"
+
+        # Find invalid user_id records and remove them
+        zero_revenue = get_zero_revenue_ids(raw_records)
+        several_variants = get_several_experiment_variants_ids(raw_records)
+        several_bookings = get_sevel_bookings_ids(raw_records)
+        clean_records = raw_records[
+            ~raw_records["user_id"].isin(
+                zero_revenue + several_variants + several_bookings
+            )
+        ].reset_index(drop=True)
+
+        # Assert that cleaning was successful
+        assert (
+            len(get_zero_revenue_ids(clean_records)) == 0
+        ), "Some records have revenue equal 0"
+        assert (
+            len(get_several_experiment_variants_ids(clean_records)) == 0
+        ), "Some IDs have more than one variant associated to them"
+
+        # Save to DB if needed
+        if save_to_db:
+            with sqlite3.connect(conf.db_path) as conn:
+                clean_records.to_sql(conf.clean_records, conn)
 
     if return_df:
         return clean_records

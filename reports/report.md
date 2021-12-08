@@ -165,7 +165,7 @@ We can gain further insight into how the work by looking at the distribution for
 
 ![KDE revenue city](./figs/clean_logs_eda/revenue_kde_city.png)
 
-Even though we could try to analyze these distributions by using a Gaussian approximation, we see that that in reality they are multimodal, that is, they seem like a mixture of different, simpler distributions. This may be due to the fact that each city may have different types of homes (different sizes, different neighborhoods, different touristic appeal). It is then probably better to use bootstrapping once again in order to estimate the percentage change:
+Even though we could try to analyze these distributions by using a Gaussian approximation, we see that in reality they are multimodal, that is, they seem like a mixture of different, simpler distributions. This may be due to the fact that each city may have different types of homes (different sizes, different neighborhoods, different touristic appeal). It is then probably better to use bootstrapping once again in order to estimate the percentage change:
 
 ```
 ---- Percentage increase estimate ---
